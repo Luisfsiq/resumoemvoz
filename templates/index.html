@@ -123,22 +123,177 @@
                 <span>Configurações de Voz</span>
             </div>
 
-            <div class="settings-grid">
-                <div class="setting-group">
-                    <label for="voice-select">Voz</label>
-                    <div class="select-wrapper">
-                        <select id="voice-select">
-                            <option value="francisca">🎙️ Francisca (Feminina)</option>
-                            <option value="antonio">🎙️ Antonio (Masculina)</option>
-                        </select>
+            <!-- Voice Mode Tabs -->
+            <div class="input-tabs" style="margin-bottom: 1.5rem;">
+                <button class="tab-btn active" id="mode-neural">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    </svg>
+                    Voz Neural
+                </button>
+                <button class="tab-btn" id="mode-custom">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                        <circle cx="12" cy="7" r="4"/>
+                    </svg>
+                    Sua Voz
+                </button>
+            </div>
+
+            <!-- Neural Voice Settings (default) -->
+            <div id="neural-settings">
+                <div class="settings-grid">
+                    <div class="setting-group">
+                        <label for="voice-select">Voz</label>
+                        <div class="select-wrapper">
+                            <select id="voice-select">
+                                <option value="francisca">🎙️ Francisca (Feminina)</option>
+                                <option value="antonio">🎙️ Antonio (Masculina)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="setting-group">
+                        <label for="speed-slider">Velocidade</label>
+                        <div class="speed-control">
+                            <input type="range" class="speed-slider" id="speed-slider" min="-50" max="100" value="0" step="10">
+                            <span class="speed-value" id="speed-value">1.0x</span>
+                        </div>
                     </div>
                 </div>
-                <div class="setting-group">
-                    <label for="speed-slider">Velocidade</label>
-                    <div class="speed-control">
-                        <input type="range" class="speed-slider" id="speed-slider" min="-50" max="100" value="0" step="10">
-                        <span class="speed-value" id="speed-value">1.0x</span>
+            </div>
+
+            <!-- Custom Voice Recording Section -->
+            <div id="custom-voice-section" class="hidden">
+                <div class="recording-intro">
+                    <p class="recording-intro-text">Grave sua voz lendo as frases abaixo. O sistema usará sua gravação para clonar sua voz e narrar o resumo.</p>
+                    <div class="recording-tip">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                            <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                        </svg>
+                        <span>Fale de forma natural, em um ambiente silencioso, a ~20cm do microfone.</span>
                     </div>
+                </div>
+
+                <!-- Recording Steps -->
+                <div class="recording-steps">
+                    <!-- Step 1 -->
+                    <div class="recording-step" id="rec-step-0" data-step="0">
+                        <div class="step-header">
+                            <div class="step-number">1</div>
+                            <div class="step-status" id="step-status-0">Aguardando</div>
+                        </div>
+                        <p class="step-phrase">"Olá, espero que você esteja tendo um ótimo dia. Estou gravando minha voz para criar um áudio personalizado."</p>
+                        <div class="step-controls">
+                            <button class="rec-btn" id="rec-btn-0" onclick="toggleRecording(0)" title="Gravar">
+                                <svg class="rec-icon-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                                    <line x1="12" y1="19" x2="12" y2="23"/>
+                                </svg>
+                                <div class="rec-icon-stop">
+                                    <div class="stop-square"></div>
+                                </div>
+                                <div class="rec-pulse"></div>
+                            </button>
+                            <div class="rec-timer" id="rec-timer-0">0:00</div>
+                            <button class="rec-play-btn hidden" id="rec-play-0" onclick="playRecording(0)" title="Ouvir gravação">
+                                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                                    <polygon points="5 3 19 12 5 21 5 3"/>
+                                </svg>
+                            </button>
+                            <button class="rec-redo-btn hidden" id="rec-redo-0" onclick="redoRecording(0)" title="Regravar">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                                    <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Step 2 -->
+                    <div class="recording-step" id="rec-step-1" data-step="1">
+                        <div class="step-header">
+                            <div class="step-number">2</div>
+                            <div class="step-status" id="step-status-1">Aguardando</div>
+                        </div>
+                        <p class="step-phrase">"A inteligência artificial está revolucionando a forma como trabalhamos e aprendemos todos os dias."</p>
+                        <div class="step-controls">
+                            <button class="rec-btn" id="rec-btn-1" onclick="toggleRecording(1)" title="Gravar">
+                                <svg class="rec-icon-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                                    <line x1="12" y1="19" x2="12" y2="23"/>
+                                </svg>
+                                <div class="rec-icon-stop">
+                                    <div class="stop-square"></div>
+                                </div>
+                                <div class="rec-pulse"></div>
+                            </button>
+                            <div class="rec-timer" id="rec-timer-1">0:00</div>
+                            <button class="rec-play-btn hidden" id="rec-play-1" onclick="playRecording(1)" title="Ouvir gravação">
+                                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                                    <polygon points="5 3 19 12 5 21 5 3"/>
+                                </svg>
+                            </button>
+                            <button class="rec-redo-btn hidden" id="rec-redo-1" onclick="redoRecording(1)" title="Regravar">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                                    <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Step 3 -->
+                    <div class="recording-step" id="rec-step-2" data-step="2">
+                        <div class="step-header">
+                            <div class="step-number">3</div>
+                            <div class="step-status" id="step-status-2">Aguardando</div>
+                        </div>
+                        <p class="step-phrase">"É muito importante que possamos usar a tecnologia para facilitar nossa vida e compartilhar conhecimento."</p>
+                        <div class="step-controls">
+                            <button class="rec-btn" id="rec-btn-2" onclick="toggleRecording(2)" title="Gravar">
+                                <svg class="rec-icon-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                                    <line x1="12" y1="19" x2="12" y2="23"/>
+                                </svg>
+                                <div class="rec-icon-stop">
+                                    <div class="stop-square"></div>
+                                </div>
+                                <div class="rec-pulse"></div>
+                            </button>
+                            <div class="rec-timer" id="rec-timer-2">0:00</div>
+                            <button class="rec-play-btn hidden" id="rec-play-2" onclick="playRecording(2)" title="Ouvir gravação">
+                                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                                    <polygon points="5 3 19 12 5 21 5 3"/>
+                                </svg>
+                            </button>
+                            <button class="rec-redo-btn hidden" id="rec-redo-2" onclick="redoRecording(2)" title="Regravar">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                                    <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recording Progress Summary -->
+                <div class="recording-summary" id="recording-summary">
+                    <div class="summary-bar">
+                        <div class="summary-dot completed" id="dot-0"></div>
+                        <div class="summary-line" id="line-0"></div>
+                        <div class="summary-dot" id="dot-1"></div>
+                        <div class="summary-line" id="line-1"></div>
+                        <div class="summary-dot" id="dot-2"></div>
+                    </div>
+                    <p class="summary-text" id="summary-text">Grave as 3 frases acima para continuar</p>
+                </div>
+
+                <div class="clone-warning">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                    </svg>
+                    <span>Requer <strong>Coqui TTS</strong> instalado (<code>pip install TTS</code>). A geração pode levar alguns minutos.</span>
                 </div>
             </div>
 

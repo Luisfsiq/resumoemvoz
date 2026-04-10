@@ -293,10 +293,6 @@ body::before {
     display: block;
 }
 
-.input-section.hidden {
-    display: none;
-}
-
 .text-input {
     width: 100%;
     min-height: 200px;
@@ -880,4 +876,351 @@ body::before {
     .player-controls {
         flex-wrap: wrap;
     }
+}
+
+/* ============================================
+   Voice Recording Panel Styles
+   ============================================ */
+
+.hidden {
+    display: none !important;
+}
+
+/* === Recording Intro === */
+.recording-intro {
+    margin-bottom: 1.25rem;
+}
+
+.recording-intro-text {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 0.75rem;
+}
+
+.recording-tip {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.65rem 1rem;
+    background: rgba(59, 130, 246, 0.08);
+    border: 1px solid rgba(59, 130, 246, 0.15);
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+    color: #93c5fd;
+}
+
+.recording-tip svg {
+    flex-shrink: 0;
+    color: #60a5fa;
+}
+
+/* === Recording Steps === */
+.recording-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+}
+
+.recording-step {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    padding: 1rem 1.25rem;
+    transition: all var(--transition-normal);
+}
+
+.recording-step.recording {
+    border-color: #ef4444;
+    background: rgba(239, 68, 68, 0.05);
+}
+
+.recording-step.completed {
+    border-color: rgba(34, 197, 94, 0.3);
+    background: rgba(34, 197, 94, 0.04);
+}
+
+.step-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.65rem;
+}
+
+.step-number {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--glass-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    transition: all var(--transition-normal);
+}
+
+.recording-step.completed .step-number {
+    background: var(--success);
+    border-color: var(--success);
+    color: white;
+}
+
+.recording-step.recording .step-number {
+    background: #ef4444;
+    border-color: #ef4444;
+    color: white;
+    animation: pulse-number 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-number {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+    50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+}
+
+.step-status {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+}
+
+.recording-step.recording .step-status {
+    color: #ef4444;
+}
+
+.recording-step.completed .step-status {
+    color: var(--success);
+}
+
+.step-phrase {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    font-style: italic;
+    padding-left: 0.5rem;
+    border-left: 2px solid var(--glass-border);
+    margin-bottom: 0.75rem;
+}
+
+.recording-step.recording .step-phrase {
+    border-left-color: #ef4444;
+    color: var(--text-primary);
+}
+
+/* === Recording Controls === */
+.step-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.rec-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.06);
+    border: 2px solid var(--glass-border);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    transition: all var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.rec-btn:hover {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: #ef4444;
+    color: #ef4444;
+}
+
+.rec-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+.rec-btn .rec-icon-stop {
+    display: none;
+}
+
+.rec-btn .rec-pulse {
+    display: none;
+}
+
+/* Recording active state */
+.rec-btn.recording {
+    background: #ef4444;
+    border-color: #ef4444;
+    color: white;
+}
+
+.rec-btn.recording .rec-icon-mic {
+    display: none;
+}
+
+.rec-btn.recording .rec-icon-stop {
+    display: flex;
+}
+
+.rec-btn.recording .rec-pulse {
+    display: block;
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    right: -4px;
+    bottom: -4px;
+    border-radius: 50%;
+    border: 2px solid #ef4444;
+    animation: rec-pulse-anim 1.5s ease-in-out infinite;
+}
+
+.stop-square {
+    width: 14px;
+    height: 14px;
+    background: white;
+    border-radius: 2px;
+}
+
+@keyframes rec-pulse-anim {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0; transform: scale(1.3); }
+}
+
+/* Timer */
+.rec-timer {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    min-width: 35px;
+}
+
+.recording-step.recording .rec-timer {
+    color: #ef4444;
+}
+
+/* Play/Redo buttons */
+.rec-play-btn,
+.rec-redo-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.rec-play-btn:hover {
+    background: rgba(34, 197, 94, 0.1);
+    border-color: var(--success);
+    color: var(--success);
+}
+
+.rec-redo-btn:hover {
+    background: rgba(245, 158, 11, 0.1);
+    border-color: var(--warning);
+    color: var(--warning);
+}
+
+.rec-play-btn svg,
+.rec-redo-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* === Recording Summary Bar === */
+.recording-summary {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: var(--radius-md);
+    margin-bottom: 1rem;
+}
+
+.summary-bar {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    width: 140px;
+}
+
+.summary-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid var(--glass-border);
+    flex-shrink: 0;
+    transition: all var(--transition-normal);
+}
+
+.summary-dot.completed {
+    background: var(--success);
+    border-color: var(--success);
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.3);
+}
+
+.summary-line {
+    flex: 1;
+    height: 2px;
+    background: var(--glass-border);
+    transition: background var(--transition-normal);
+}
+
+.summary-line.completed {
+    background: var(--success);
+}
+
+.summary-text {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.summary-text.ready {
+    color: var(--success);
+    font-weight: 600;
+}
+
+/* === Clone Warning === */
+.clone-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.65rem 1rem;
+    background: rgba(245, 158, 11, 0.06);
+    border: 1px solid rgba(245, 158, 11, 0.15);
+    border-radius: var(--radius-sm);
+    font-size: 0.78rem;
+    color: #fbbf24;
+    line-height: 1.5;
+}
+
+.clone-warning svg {
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.clone-warning code {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    font-size: 0.72rem;
 }

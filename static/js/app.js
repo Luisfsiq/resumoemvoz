@@ -1,11 +1,12 @@
 /**
- * Resumo em Áudio — Frontend Logic
- * Handles text/file input, audio generation, playback, and waveform visualization.
+ * Resumo em Audio — Frontend Logic
+ * Handles text/file input, voice recording, audio generation, playback, and waveform visualization.
  */
 
 // ========== State ==========
 const state = {
-    mode: 'text', // 'text' or 'file'
+    mode: 'text',           // 'text' or 'file'
+    voiceMode: 'neural',    // 'neural' or 'custom'
     file: null,
     audioBlob: null,
     audioUrl: null,
@@ -14,6 +15,18 @@ const state = {
     audioContext: null,
     analyser: null,
     animationFrame: null,
+    // Recording state
+    recordings: [null, null, null],     // Float32Array PCM data for each step
+    recordingSampleRate: 22050,
+    isRecording: false,
+    currentRecordingStep: null,
+    recorderStream: null,
+    recorderContext: null,
+    recorderProcessor: null,
+    recorderChunks: [],
+    recorderTimer: null,
+    recorderSeconds: 0,
+    combinedVoiceSample: null,          // Final WAV Blob
 };
 
 // ========== DOM Elements ==========
@@ -46,23 +59,43 @@ const elements = {
     timeDuration: $('#time-duration'),
     downloadBtn: $('#download-btn'),
     waveCanvas: $('#wave-canvas'),
+    // Voice mode
+    modeNeural: $('#mode-neural'),
+    modeCustom: $('#mode-custom'),
+    neuralSettings: $('#neural-settings'),
+    customVoiceSection: $('#custom-voice-section'),
+    summaryText: $('#summary-text'),
 };
 
 // ========== Tab Switching ==========
 function switchTab(mode) {
     state.mode = mode;
-
-    // Update tab buttons
     elements.tabText.classList.toggle('active', mode === 'text');
     elements.tabFile.classList.toggle('active', mode === 'file');
-
-    // Update sections
     elements.textSection.classList.toggle('hidden', mode !== 'text');
     elements.fileSection.classList.toggle('hidden', mode !== 'file');
 }
 
 elements.tabText.addEventListener('click', () => switchTab('text'));
 elements.tabFile.addEventListener('click', () => switchTab('file'));
+
+// ========== Voice Mode Switching ==========
+function switchVoiceMode(mode) {
+    state.voiceMode = mode;
+    elements.modeNeural.classList.toggle('active', mode === 'neural');
+    elements.modeCustom.classList.toggle('active', mode === 'custom');
+
+    if (mode === 'neural') {
+        elements.neuralSettings.classList.remove('hidden');
+        elements.customVoiceSection.classList.add('hidden');
+    } else {
+        elements.neuralSettings.classList.add('hidden');
+        elements.customVoiceSection.classList.remove('hidden');
+    }
+}
+
+elements.modeNeural.addEventListener('click', () => switchVoiceMode('neural'));
+elements.modeCustom.addEventListener('click', () => switchVoiceMode('custom'));
 
 // ========== Character Count ==========
 elements.textInput.addEventListener('input', () => {
@@ -156,6 +189,263 @@ function hideStatus() {
     elements.statusMessage.classList.remove('visible');
 }
 
+// ============================================================
+//  VOICE RECORDING — Captures raw PCM and encodes as WAV
+// ============================================================
+
+/**
+ * Toggle recording for a given step index (0, 1, 2).
+ */
+async function toggleRecording(stepIndex) {
+    if (state.isRecording && state.currentRecordingStep === stepIndex) {
+        stopRecording(stepIndex);
+    } else if (state.isRecording) {
+        // Another step is recording — stop it first
+        stopRecording(state.currentRecordingStep);
+        setTimeout(() => toggleRecording(stepIndex), 200);
+    } else {
+        await startRecording(stepIndex);
+    }
+}
+
+async function startRecording(stepIndex) {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                channelCount: 1,
+                sampleRate: 22050,
+                echoCancellation: true,
+                noiseSuppression: true,
+            }
+        });
+
+        state.recorderStream = stream;
+        state.recorderContext = new AudioContext({ sampleRate: 22050 });
+        state.recordingSampleRate = state.recorderContext.sampleRate;
+
+        const source = state.recorderContext.createMediaStreamSource(stream);
+
+        // Use ScriptProcessorNode to capture raw PCM
+        state.recorderProcessor = state.recorderContext.createScriptProcessor(4096, 1, 1);
+        state.recorderChunks = [];
+
+        state.recorderProcessor.onaudioprocess = (e) => {
+            if (state.isRecording) {
+                state.recorderChunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+            }
+        };
+
+        source.connect(state.recorderProcessor);
+        state.recorderProcessor.connect(state.recorderContext.destination);
+
+        state.isRecording = true;
+        state.currentRecordingStep = stepIndex;
+        state.recorderSeconds = 0;
+
+        // Update UI
+        updateRecordingStepUI(stepIndex, 'recording');
+
+        // Start timer
+        state.recorderTimer = setInterval(() => {
+            state.recorderSeconds++;
+            $(`#rec-timer-${stepIndex}`).textContent = formatTime(state.recorderSeconds);
+        }, 1000);
+
+        // Auto-stop after 10 seconds
+        setTimeout(() => {
+            if (state.isRecording && state.currentRecordingStep === stepIndex) {
+                stopRecording(stepIndex);
+            }
+        }, 10000);
+
+    } catch (err) {
+        console.error('Microphone error:', err);
+        showStatus('Não foi possível acessar o microfone. Verifique as permissões do navegador.', 'error');
+    }
+}
+
+function stopRecording(stepIndex) {
+    if (!state.isRecording) return;
+
+    state.isRecording = false;
+    clearInterval(state.recorderTimer);
+
+    // Stop stream
+    if (state.recorderStream) {
+        state.recorderStream.getTracks().forEach(t => t.stop());
+    }
+
+    // Disconnect processor
+    if (state.recorderProcessor) {
+        state.recorderProcessor.disconnect();
+    }
+
+    // Combine PCM chunks
+    const totalLength = state.recorderChunks.reduce((acc, c) => acc + c.length, 0);
+    const combined = new Float32Array(totalLength);
+    let offset = 0;
+    for (const chunk of state.recorderChunks) {
+        combined.set(chunk, offset);
+        offset += chunk.length;
+    }
+
+    // Store the raw PCM data
+    state.recordings[stepIndex] = combined;
+
+    // Close audio context
+    if (state.recorderContext && state.recorderContext.state !== 'closed') {
+        state.recorderContext.close();
+    }
+
+    // Update UI
+    updateRecordingStepUI(stepIndex, 'completed');
+    updateSummary();
+
+    // Build combined sample if all done
+    buildCombinedSample();
+}
+
+function updateRecordingStepUI(stepIndex, status) {
+    const stepEl = $(`#rec-step-${stepIndex}`);
+    const btnEl = $(`#rec-btn-${stepIndex}`);
+    const statusEl = $(`#step-status-${stepIndex}`);
+    const playEl = $(`#rec-play-${stepIndex}`);
+    const redoEl = $(`#rec-redo-${stepIndex}`);
+
+    stepEl.classList.remove('recording', 'completed');
+    btnEl.classList.remove('recording');
+
+    if (status === 'recording') {
+        stepEl.classList.add('recording');
+        btnEl.classList.add('recording');
+        statusEl.textContent = 'Gravando...';
+        playEl.classList.add('hidden');
+        redoEl.classList.add('hidden');
+    } else if (status === 'completed') {
+        stepEl.classList.add('completed');
+        statusEl.textContent = 'Concluído';
+        playEl.classList.remove('hidden');
+        redoEl.classList.remove('hidden');
+    } else {
+        statusEl.textContent = 'Aguardando';
+        playEl.classList.add('hidden');
+        redoEl.classList.add('hidden');
+        $(`#rec-timer-${stepIndex}`).textContent = '0:00';
+    }
+}
+
+function updateSummary() {
+    const completedCount = state.recordings.filter(r => r !== null).length;
+
+    for (let i = 0; i < 3; i++) {
+        const dot = $(`#dot-${i}`);
+        dot.classList.toggle('completed', state.recordings[i] !== null);
+    }
+
+    // Lines between dots
+    for (let i = 0; i < 2; i++) {
+        const line = $(`#line-${i}`);
+        line.classList.toggle('completed',
+            state.recordings[i] !== null && state.recordings[i + 1] !== null
+        );
+    }
+
+    const summaryText = elements.summaryText;
+    if (completedCount === 3) {
+        summaryText.textContent = 'Todas as gravações concluídas!';
+        summaryText.classList.add('ready');
+    } else {
+        summaryText.textContent = `${completedCount}/3 gravações concluídas`;
+        summaryText.classList.remove('ready');
+    }
+}
+
+function playRecording(stepIndex) {
+    const pcmData = state.recordings[stepIndex];
+    if (!pcmData) return;
+
+    const wavBlob = encodeWAV(pcmData, state.recordingSampleRate);
+    const url = URL.createObjectURL(wavBlob);
+    const audio = new Audio(url);
+    audio.play();
+    audio.onended = () => URL.revokeObjectURL(url);
+}
+
+function redoRecording(stepIndex) {
+    state.recordings[stepIndex] = null;
+    state.combinedVoiceSample = null;
+    updateRecordingStepUI(stepIndex, 'idle');
+    updateSummary();
+}
+
+function buildCombinedSample() {
+    const allDone = state.recordings.every(r => r !== null);
+    if (!allDone) {
+        state.combinedVoiceSample = null;
+        return;
+    }
+
+    // Add 0.3 seconds of silence between each recording
+    const silenceSamples = Math.floor(state.recordingSampleRate * 0.3);
+    const silence = new Float32Array(silenceSamples);
+
+    const totalLength = state.recordings.reduce((acc, r) => acc + r.length, 0)
+        + silence.length * (state.recordings.length - 1);
+
+    const combined = new Float32Array(totalLength);
+    let offset = 0;
+
+    for (let i = 0; i < state.recordings.length; i++) {
+        combined.set(state.recordings[i], offset);
+        offset += state.recordings[i].length;
+        if (i < state.recordings.length - 1) {
+            combined.set(silence, offset);
+            offset += silence.length;
+        }
+    }
+
+    state.combinedVoiceSample = encodeWAV(combined, state.recordingSampleRate);
+}
+
+// ========== WAV Encoder ==========
+function encodeWAV(samples, sampleRate) {
+    const buffer = new ArrayBuffer(44 + samples.length * 2);
+    const view = new DataView(buffer);
+
+    // RIFF header
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + samples.length * 2, true);
+    writeString(view, 8, 'WAVE');
+
+    // fmt chunk
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);          // chunk size
+    view.setUint16(20, 1, true);           // PCM format
+    view.setUint16(22, 1, true);           // mono
+    view.setUint32(24, sampleRate, true);   // sample rate
+    view.setUint32(28, sampleRate * 2, true); // byte rate
+    view.setUint16(32, 2, true);           // block align
+    view.setUint16(34, 16, true);          // bits per sample
+
+    // data chunk
+    writeString(view, 36, 'data');
+    view.setUint32(40, samples.length * 2, true);
+
+    // Convert Float32 to Int16
+    for (let i = 0; i < samples.length; i++) {
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        view.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+
+    return new Blob([buffer], { type: 'audio/wav' });
+}
+
+function writeString(view, offset, string) {
+    for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+    }
+}
+
 // ========== Audio Generation ==========
 async function generateAudio() {
     const btn = elements.generateBtn;
@@ -174,6 +464,15 @@ async function generateAudio() {
         }
     }
 
+    // Validate voice sample for custom mode
+    if (state.voiceMode === 'custom') {
+        if (!state.combinedVoiceSample) {
+            const completedCount = state.recordings.filter(r => r !== null).length;
+            showStatus(`Grave todas as 3 frases antes de gerar. (${completedCount}/3 concluídas)`, 'error');
+            return;
+        }
+    }
+
     // Set loading state
     btn.classList.add('loading');
     btn.disabled = true;
@@ -181,23 +480,27 @@ async function generateAudio() {
     elements.playerCard.classList.remove('visible');
 
     try {
-        let formData;
-        const voice = elements.voiceSelect.value;
-        const rate = elements.speedSlider.value;
+        const formData = new FormData();
 
+        // Add text or file
         if (state.mode === 'file' && state.file) {
-            formData = new FormData();
             formData.append('file', state.file);
-            formData.append('voice', voice);
-            formData.append('rate', rate);
         } else {
-            formData = new FormData();
             formData.append('text', elements.textInput.value.trim());
-            formData.append('voice', voice);
-            formData.append('rate', rate);
         }
 
-        const response = await fetch('/generate', {
+        let endpoint = '/generate';
+
+        if (state.voiceMode === 'neural') {
+            formData.append('voice', elements.voiceSelect.value);
+            formData.append('rate', elements.speedSlider.value);
+        } else {
+            // Custom voice — use clone endpoint
+            endpoint = '/generate-clone';
+            formData.append('voice_sample', state.combinedVoiceSample, 'voice_sample.wav');
+        }
+
+        const response = await fetch(endpoint, {
             method: 'POST',
             body: formData,
         });
@@ -314,7 +617,7 @@ function setupAudioContext(audioEl) {
         source.connect(state.analyser);
         state.analyser.connect(state.audioContext.destination);
     } catch (e) {
-        // AudioContext already connected or unsupported — fallback to static visualization
+        // AudioContext already connected or unsupported — fallback to static
         drawStaticWaveform();
     }
 }
@@ -399,9 +702,10 @@ function drawStaticWaveform() {
 elements.downloadBtn.addEventListener('click', () => {
     if (!state.audioBlob) return;
 
+    const ext = state.voiceMode === 'custom' ? 'wav' : 'mp3';
     const link = document.createElement('a');
     link.href = state.audioUrl;
-    link.download = 'resumo_audio.mp3';
+    link.download = `resumo_audio.${ext}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -421,4 +725,6 @@ window.addEventListener('load', () => {
     window.addEventListener('resize', () => {
         if (!state.isPlaying) drawStaticWaveform();
     });
+    // Initialize summary dots
+    updateSummary();
 });

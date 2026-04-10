@@ -136,6 +136,16 @@ def supported_formats():
     return jsonify({'formats': get_supported_extensions()})
 
 
+@app.route('/check-tts', methods=['GET'])
+def check_tts():
+    """Verifica se o modulo de clonagem de voz (Coqui TTS) esta disponivel"""
+    try:
+        from voice_cloner import is_available
+        return jsonify({'available': is_available()})
+    except Exception:
+        return jsonify({'available': False})
+
+
 @app.route('/generate', methods=['POST'])
 def generate_audio():
     """
@@ -232,6 +242,90 @@ def generate_audio():
         mimetype='audio/mpeg',
         as_attachment=False,
         download_name='resumo_audio.mp3'
+    )
+
+
+@app.route('/generate-clone', methods=['POST'])
+def generate_audio_clone():
+    """
+    Gera audio usando clonagem de voz a partir de uma amostra do usuario.
+    Recebe:
+      - voice_sample: arquivo WAV com a voz do usuario
+      - text ou file: conteudo para narrar
+    """
+    cleanup_old_files()
+
+    # Verificar disponibilidade do TTS
+    try:
+        from voice_cloner import is_available, generate as clone_generate
+        if not is_available():
+            return jsonify({
+                'error': 'Clonagem de voz indisponivel. Instale com: pip install TTS'
+            }), 500
+    except ImportError:
+        return jsonify({
+            'error': 'Modulo de clonagem de voz nao encontrado.'
+        }), 500
+
+    # Verificar amostra de voz
+    if 'voice_sample' not in request.files:
+        return jsonify({'error': 'Nenhuma amostra de voz fornecida.'}), 400
+
+    voice_sample = request.files['voice_sample']
+    sample_filename = f"{uuid.uuid4()}_sample.wav"
+    sample_path = os.path.join(app.config['UPLOAD_FOLDER'], sample_filename)
+    voice_sample.save(sample_path)
+
+    # Extrair texto
+    text = None
+    if 'file' in request.files:
+        file = request.files['file']
+        if file.filename and is_allowed_file(file.filename):
+            temp_filename = f"{uuid.uuid4()}_{file.filename}"
+            temp_filepath = os.path.join(app.config['UPLOAD_FOLDER'], temp_filename)
+            file.save(temp_filepath)
+            try:
+                text = extract_text(temp_filepath)
+            except ValueError as e:
+                os.remove(sample_path)
+                return jsonify({'error': str(e)}), 400
+            finally:
+                if os.path.exists(temp_filepath):
+                    os.remove(temp_filepath)
+    elif 'text' in request.form:
+        text = request.form.get('text', '').strip()
+
+    if not text:
+        os.remove(sample_path)
+        return jsonify({'error': 'Nenhum texto fornecido.'}), 400
+
+    # Limitar texto (XTTS e mais lento, limitar a 3000 chars)
+    if len(text) > 3000:
+        text = text[:3000]
+
+    # Processar texto para narracao
+    narration_text = extract_key_points(text)
+
+    # Gerar audio com clonagem de voz
+    audio_filename = f"{uuid.uuid4()}.wav"
+    audio_path = os.path.join(app.config['UPLOAD_FOLDER'], audio_filename)
+
+    try:
+        clone_generate(narration_text, sample_path, audio_path)
+    except Exception as e:
+        return jsonify({'error': f'Erro na clonagem de voz: {str(e)}'}), 500
+    finally:
+        if os.path.exists(sample_path):
+            os.remove(sample_path)
+
+    if not os.path.exists(audio_path):
+        return jsonify({'error': 'Falha ao gerar o arquivo de audio.'}), 500
+
+    return send_file(
+        audio_path,
+        mimetype='audio/wav',
+        as_attachment=False,
+        download_name='resumo_audio_clone.wav'
     )
 
 
